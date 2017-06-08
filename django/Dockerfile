@@ -1,11 +1,22 @@
-From hongchhe/ubuntu-python:latest
+From hongchhe/python:3.6.1
 MAINTAINER Hongchuang <hehongchuang@hotmail.com>
 
-# install openssh-server, openjdk and wget
-RUN        pip install django \ 
-        && cd /opt \
-        && django-admin startproject mysite
+RUN        pip install django \
+        && groupadd -r django \
+        && useradd -r -g django django
 
-EXPOSE     8000
+# note 8088 is for jupyter notebook
+EXPOSE     8000 8088
 
-ENTRYPOINT ["/opt/mysite/manage.py", "runserver", "localhost:8000"]
+ENV        USER_HOME=/home/django
+
+RUN        mkdir -p ${USER_HOME} \
+        && chown -R django ${USER_HOME} && chgrp -R django ${USER_HOME}
+
+COPY       scripts/* ${USER_HOME}/scripts
+
+WORKDIR    ${USER_HOME}
+
+USER       django
+
+ENTRYPOINT ["${USER_HOME}/scripts/entrypoint.sh"]
