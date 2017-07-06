@@ -1,22 +1,28 @@
 From hongchhe/python:3.6.1
 MAINTAINER Hongchuang <hehongchuang@hotmail.com>
 
-RUN        pip install django \
-        && groupadd -r django \
-        && useradd -r -g django django
+ENV        USER_HOME=/home/django
+
+# refer to http://www.django-rest-framework.org, djangorestframework markdown and django-filter is used for django REST API
+# django-sql-explorer is a single app,
+RUN        pip install django request psycopg2 mysqlclient django-sql-explorer djangorestframework markdown django-filter
+#        && useradd -r django
 
 # note 8088 is for jupyter notebook
 EXPOSE     8000 8088
 
-ENV        USER_HOME=/home/django
+COPY       scripts/ ${USER_HOME}/scripts/
+COPY       projects/ ${USER_HOME}/projects/
+COPY       packages/ ${USER_HOME}/packages/
 
-RUN        mkdir -p ${USER_HOME} \
-        && chown -R django ${USER_HOME} && chgrp -R django ${USER_HOME}
-
-COPY       scripts/* ${USER_HOME}/scripts
+#RUN        chown -R django ${USER_HOME} && chgrp -R django ${USER_HOME}
 
 WORKDIR    ${USER_HOME}
 
-USER       django
+RUN        tar -xzvf ${USER_HOME}/packages/livy-python-api-0.3.1-SNAPSHOT.tar.gz \
+        && easy_install livy-python-api-0.3.1-SNAPSHOT \
+        && rm -rf livy-python-api-0.3.1-SNAPSHOT
 
-ENTRYPOINT ["${USER_HOME}/scripts/entrypoint.sh"]
+#USER       django
+
+ENTRYPOINT ["scripts/entrypoint.sh"]

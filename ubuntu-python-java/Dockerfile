@@ -1,4 +1,4 @@
-From ubuntu:16.04
+FROM ubuntu:16.04
 MAINTAINER Hongchuang <hehongchuang@hotmail.com>
 
 # install openssh-server, openjdk and wget
