@@ -13,8 +13,8 @@ services:
         hard: 65536
     cap_add:
       - IPC_LOCK
-    environment:
-      - COMPOSE_PROJECT_NAME=spark
+#    environment:
+#      - COMPOSE_PROJECT_NAME=spark
     ports:
       - 8000:8000
       - 8018:8018

@@ -1,4 +1,4 @@
-From hongchhe/python:3.6.1
+FROM hongchhe/python:3.6.1
 MAINTAINER Hongchuang <hehongchuang@hotmail.com>
 
 ENV        USER_HOME=/home/django

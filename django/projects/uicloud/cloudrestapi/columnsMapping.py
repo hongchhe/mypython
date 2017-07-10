@@ -4,6 +4,7 @@ import pprint
 import requests
 import textwrap
 import time
+import os
 
 
 # Get an instance of a logger
@@ -40,7 +41,9 @@ def executeSpark(sparkCode, pyFiles = [], sparkHost = 'http://spark-master0:8998
     pprint.pprint(sparkCodesReq.json())
     pprint.pprint(sparkCodesReq.headers)
 
-    resultReqJson = getReqFromDesiredReqState(host + sparkCodesReq.headers['location'], eachSleepDuration=10)
+    resultReqJson = getReqFromDesiredReqState(host + sparkCodesReq.headers['location'], desiredState = 'available', \
+        eachSleepDuration=10)
+
     if not resultReqJson:
         requests.delete(sessionUrl, headers=headers)
         return False
@@ -61,11 +64,20 @@ def getReqFromDesiredReqState(reqUrl, headers = {'Content-Type': 'application/js
     '''
     reqCount = 0
     reqJson = requests.get(reqUrl, headers=headers).json()
+    logger.debug("Step:{0}, response:{1}".format(reqCount, reqJson))
     while reqCount < maxReqCount and reqJson['state'] != desiredState:
+        if reqJson['state'] == 'error':
+            loggger.error("There is an error in Step-{0}, see the details for the response:{1}".format(reqCount, reqJson))
+            return False
+        if reqJson['state'] in ['cancelled', 'cancelling']:
+            loggger.error("the job has been cancelled in Step-{0}, see the details for the response:{1}".format(reqCount, reqJson))
+            return False
         # sleep half a second
         time.sleep(eachSleepDuration)
         reqCount = reqCount + 1
         reqJson = requests.get(reqUrl, headers=headers).json()
+
+        logger.debug("Step:{0}, response:{1}".format(reqCount, reqJson))
 
     if reqCount >= 60:
         return False;
@@ -119,7 +131,7 @@ def getOutputColumns(jsonData):
     return outputColumnsDict
 
 
-def getDbSource():
+def getDbSource(sourcesMappingFile = os.path.dirname(os.path.realpath(__file__)) + "/tmp/sources.json"):
     '''
     return a dict which include the db source mapping information like below
     {
@@ -134,15 +146,13 @@ def getDbSource():
         ...
     }
     '''
-    dbSourceDict = {
-        "mysqlDB1": {
-            "dbtype":"mysql",
-            "dbserver": "mysql1",
-            "dbport": "3306",
-            "user": "root",
-            "password": "password"
-        }
-    }
+    try:
+        sourceF = open(sourcesMappingFile)
+        dbSourceDict = json.load(sourceF)
+        logger.warn("dbSourceDict: {}".format(dbSourceDict))
+    except:
+        logger.error("Cannot get the db sources mapping!")
+        return False
 
     return dbSourceDict
     
@@ -166,7 +176,10 @@ def getSparkCode(jsonData, url="hdfs://spark-master0:9000/users", folders="myfol
     #     },
     #     ...
     # }
-    jsonData["dbsources"] = getDbSource();
+    dbSourceDict = getDbSource();
+    if not dbSourceDict:
+        return False
+    jsonData["dbsources"] = dbSourceDict;
 
     return """
     import sys
