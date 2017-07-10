@@ -42,7 +42,7 @@ def executeSpark(sparkCode, pyFiles = [], sparkHost = 'http://spark-master0:8998
     pprint.pprint(sparkCodesReq.headers)
 
     resultReqJson = getReqFromDesiredReqState(host + sparkCodesReq.headers['location'], desiredState = 'available', \
-        eachSleepDuration=10)
+        eachSleepDuration=5)
 
     if not resultReqJson:
         requests.delete(sessionUrl, headers=headers)
@@ -57,9 +57,8 @@ def executeSpark(sparkCode, pyFiles = [], sparkHost = 'http://spark-master0:8998
 
     return results
 
-
 def getReqFromDesiredReqState(reqUrl, headers = {'Content-Type': 'application/json'}, \
-        desiredState = 'idle', maxReqCount = 30, eachSleepDuration = 5):
+        desiredState = 'idle', maxReqCount = 60, eachSleepDuration = 2):
     '''
     '''
     reqCount = 0
@@ -149,7 +148,7 @@ def getDbSource(sourcesMappingFile = os.path.dirname(os.path.realpath(__file__))
     try:
         sourceF = open(sourcesMappingFile)
         dbSourceDict = json.load(sourceF)
-        logger.warn("dbSourceDict: {}".format(dbSourceDict))
+        logger.debug("dbSourceDict: {}".format(dbSourceDict))
     except:
         logger.error("Cannot get the db sources mapping!")
         return False
@@ -195,7 +194,7 @@ def getSparkCode(jsonData, url="hdfs://spark-master0:9000/users", folders="myfol
     
         #get user information, especially username.
         
-        newDF.write.parquet(savedPathUrl)
+        newDF.write.parquet(savedPathUrl, mode='overwrite')
         return True
     
     def generateNewDataFrame(jsonData):
