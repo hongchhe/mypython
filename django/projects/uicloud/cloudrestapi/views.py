@@ -1,8 +1,7 @@
 from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from .columnsMapping import *
-from django.http import HttpResponseBadRequest
+#from rest_framework.response import Response
+from .dataHandler import *
+from django.http import JsonResponse
 
 import json
 import logging
@@ -10,6 +9,7 @@ import logging
 # Get an instance of a logger
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
 
 @api_view(['POST'])
 def checkTableMapping(request):
@@ -40,7 +40,7 @@ def checkTableMapping(request):
             },
             ...
         ],
-    
+
         "relationships": [
             {
                 "fromTable": "<databaseName>.<tableName>",
@@ -58,7 +58,8 @@ def checkTableMapping(request):
         ]
     }
     '''
-    logger.info("type(request.data): {0}, \n request.data: {1}".format(type(request.data), request.data))
+    logger.info("type(request.data): {0}, \n request.data: {1}".format(
+        type(request.data), request.data))
 
     jsonData = request.data
 
@@ -67,14 +68,15 @@ def checkTableMapping(request):
         outputColumnsDict = getOutputColumns(jsonData)
 
         if not outputColumnsDict:
-            failObj = { "status": "failed", \
-                "reason": "the request data didn't meet the required format. Please check it again."}
-            return HttpResponseBadRequest( json.dumps(failObj) )
+            failObj = {"status": "failed",
+                       "reason": "the request data didn't meet the required format. Please check it again."}
+            return JsonResponse(failObj)
 
         # response all valid columns
-        successobj = { "status": "success", \
-            "columns": outputColumnsDict }
-        return Response( json.dumps(outputColumnsDict) )
+        successObj = {"status": "success",
+                      "columns": outputColumnsDict}
+        return JsonResponse( successObj )
+
 
 @api_view(['POST'])
 def generateNewTable(request):
@@ -121,7 +123,7 @@ def generateNewTable(request):
             }
             ...
         ],
-    
+
         "outputs":{
             "outputTableName": <tableName>,
             "columnsMapping": {
@@ -134,32 +136,32 @@ def generateNewTable(request):
     }
     '''
 
-    jsonData=request.data
-    
-    logger.debug("type(request.data): {0}, \n request.data: {1}".format(type(jsonData), jsonData))
+    jsonData = request.data
+
+    logger.debug("type(request.data): {0}, \n request.data: {1}".format(
+        type(jsonData), jsonData))
     if request.method == 'POST':
 
         # response all valid columns
         sparkCode = getGenNewTableSparkCode(jsonData)
-        
-        if not sparkCode:
-            failObj = {"status": "failed", \
-                "reason": "Cannot get the db sources mapping."}
-            return HttpResponseBadRequest( failObj )
-        
-        output = executeSpark( sparkCode )
-        if not output:
-            failObj = {"status": "failed", \
-                "reason": "Please see the detailed logs."}
-            return HttpResponseBadRequest( failObj )
-        elif output["status"] !="ok":
-            failObj = {"status": "failed", \
-                "reason": output}
-            return HttpResponseBadRequest( failObj )
-        else:
-            sucessObj = { "status": "success" }
-            return Response( sucessObj )
 
+        if not sparkCode:
+            failObj = {"status": "failed",
+                       "reason": "Cannot get the db sources mapping."}
+            return JsonResponse(failObj)
+
+        output = executeSpark(sparkCode)
+        if not output:
+            failObj = {"status": "failed",
+                       "reason": "Please see the detailed logs."}
+            return JsonResponse(failObj)
+        elif output["status"] != "ok":
+            failObj = {"status": "failed",
+                       "reason": output}
+            return JsonResponse(failObj)
+        else:
+            sucessObj = {"status": "success"}
+            return JsonResponse(sucessObj)
 
 
 @api_view(['GET'])
@@ -172,58 +174,48 @@ def getAllTablesFromUser(request):
         userPath = "/users/{}".format("myfolder")
         outputList = listDirectoryFromHdfs(path=userPath)
         if not outputList:
-            failObj = {"status": "failed", \
-                "reason": "Please see the logs for details."}
-            return HttpResponseBadRequest( failObj )
-        successObj = { "status": "success", "results": outputList }
-        return Response( successObj )
+            failObj = {"status": "failed",
+                       "reason": "Please see the logs for details."}
+            return JsonResponse(failObj)
+        successObj = {"status": "success", "results": outputList}
+        return JsonResponse(successObj)
 
 
 @api_view(['GET'])
-def getTableViaSpark(request, tableName):
+def getTableViaSpark(request, tableName, modeName):
     '''
     GET:
     Get all table from the current user.
     '''
 
-    jsonData=request.data
-    logger.info("request.data: {0}, tableName: {1}".format(jsonData, tableName))
+    jsonData = request.data
+    logger.info("request.data: {0}, tableName: {1}".format(
+        jsonData, tableName))
     if request.method == 'GET':
 
+        modeList = ['all', 'data', 'schema']
+        if modeName not in modeList:
+            failObj = {"status": "failed",
+                       "reason": "the mode must one of {0}".format(modeList)}
+            return JsonResponse(failObj)
         # response all valid columns
         curUserName = "myfolder"
-        sparkCode = getTableInfoSparkCode( curUserName, tableName )
-        
-        output = executeSpark( sparkCode )
+        sparkCode = getTableInfoSparkCode(
+            curUserName, tableName, mode=modeName)
+
+        output = executeSpark(sparkCode)
         if not output:
-            failObj = {"status": "failed", \
-                "reason": "Please see the logs for details."}
-            return Response( failObj )
-        elif output["status"] !="ok":
-            failObj = {"status": "failed", \
-                "reason": output}
-            return Response( failObj )
+            failObj = {"status": "failed",
+                       "reason": "Please see the logs for details."}
+            return JsonResponse(failObj)
+        elif output["status"] != "ok":
+            failObj = {"status": "failed",
+                       "reason": output}
+            return JsonResponse(failObj)
         else:
-            #results = []
-
-            # Here is the sample output. 
-            # {
-            #   'data': 
-            #     {
-            #       'text/plain': "['db1_table1_col2:StringType', 
-            #                        'mycol1:IntegerType', 'mycol2:StringType',
-            #                        'db2_table2_col1:IntegerType']"
-            #     },
-            #   'execution_count': 1,
-            #   'status': 'ok'
-            # }
-
-#            for item in output["data"]["text/plain"][1:-1].split(","):
-#                itemlt = item[1:-1].split(":")
-#                results.append({"name":itemlt[0].strip(), "type":itemlt[1].strip()})
             logger.debug("output: {}".format(output))
             data = output["data"]["text/plain"]
 
-            results = json.loads(data.replace("': u'", "': '").replace("'", "\""))
-            sucessObj = { "status": "success", "results": results}
-            return Response( sucessObj )
+            results = json.loads(data)
+            sucessObj = {"status": "success", "results": results}
+            return JsonResponse(sucessObj)
