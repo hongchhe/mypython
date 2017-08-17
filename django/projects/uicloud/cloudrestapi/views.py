@@ -1,13 +1,14 @@
 from rest_framework.decorators import api_view
 # from rest_framework.response import Response
 from .data_handler import *
+from .mllib_handler import *
 from django.http import JsonResponse
 
 import json
 import logging
 
 # Get an instance of a logger
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("uicloud.cloudrestapi.views")
 logger.setLevel(logging.DEBUG)
 
 
@@ -177,6 +178,7 @@ def generateNewTable(request):
             return JsonResponse(failObj, status=400)
 
         output = executeSpark(sparkCode)
+        logger.debug("output: {0}".format(output))
         if not output:
             failObj = {"status": "failed",
                        "reason": "Please see the detailed logs."}
@@ -207,7 +209,7 @@ def getAllTablesFromUser(request):
         return JsonResponse(successObj)
 
 
-@api_view(['GET'])
+@api_view(['POST'])
 def getTableViaSpark(request, tableName, modeName):
     '''
     GET:
@@ -215,9 +217,8 @@ def getTableViaSpark(request, tableName, modeName):
     '''
 
     jsonData = request.data
-    logger.info("request.data: {0}, tableName: {1}".format(
-        jsonData, tableName))
-    if request.method == 'GET':
+    logger.info("request.data: {0}, tableName: {1}".format(jsonData, tableName))
+    if request.method == 'POST':
 
         modeList = ['all', 'data', 'schema']
         if modeName not in modeList:
@@ -227,9 +228,110 @@ def getTableViaSpark(request, tableName, modeName):
         # response all valid columns
         curUserName = "myfolder"
         sparkCode = getTableInfoSparkCode(
-            curUserName, tableName, mode=modeName)
+            curUserName, tableName, mode=modeName, filterJson=jsonData)
 
-        output = executeSpark(sparkCode)
+        output = executeSpark(sparkCode, maxCheckCount=600, reqCheckDuration=0.1)
+        if not output:
+            failObj = {"status": "failed",
+                       "reason": "Please see the logs for details."}
+            return JsonResponse(failObj, status=400)
+        elif output["status"] != "ok":
+            failObj = {"status": "failed",
+                       "reason": output}
+            return JsonResponse(failObj, status=400)
+        else:
+            logger.debug("output: {}".format(output))
+            data = output["data"]["text/plain"]
+
+            results = json.loads(data)
+            sucessObj = {"status": "success", "results": results}
+            return JsonResponse(sucessObj)
+
+
+@api_view(['POST'])
+def getAllTablesFromCustom(request):
+    '''
+    GET:
+    Get all table from the custom user.
+    '''
+
+    if request.method == 'POST':
+        jsonData = request.data
+        outputList = listDirectoryFromHdfs(
+            path=jsonData['rootfolder'], hdfsHost=jsonData['host'], port=jsonData['port'])
+        if not outputList:
+            failObj = {"status": "failed",
+                       "reason": "Please see the logs for details."}
+            return JsonResponse(failObj, status=400)
+        successObj = {"status": "success", "results": outputList}
+        return JsonResponse(successObj)
+
+
+@api_view(['POST'])
+def getTableViaSparkCustom(request, tableName, modeName):
+    '''
+    GET:
+    Get all table from the custom user.
+    '''
+
+    jsonData = request.data
+    logger.info("request.data: {0}, tableName: {1}".format(
+        jsonData, tableName))
+    if request.method == 'POST':
+
+        modeList = ['all', 'data', 'schema']
+        if modeName not in modeList:
+            failObj = {"status": "failed",
+                       "reason": "the mode must one of {0}".format(modeList)}
+            return JsonResponse(failObj, status=400)
+        # response all valid columns
+        sparkCode = getTableInfoSparkCode(
+            jsonData['subfolder'],
+            tableName,
+            mode=modeName,
+            hdfsHost=jsonData['host'],
+            port=jsonData['port'],
+            rootFolder=jsonData['rootfolder']
+        )
+
+        output = executeSpark(sparkCode, maxCheckCount=600, reqCheckDuration=0.1)
+        if not output:
+            failObj = {"status": "failed",
+                       "reason": "Please see the logs for details."}
+            return JsonResponse(failObj, status=400)
+        elif output["status"] != "ok":
+            failObj = {"status": "failed",
+                       "reason": output}
+            return JsonResponse(failObj, status=400)
+        else:
+            logger.debug("output: {}".format(output))
+            data = output["data"]["text/plain"]
+
+            results = json.loads(data)
+            sucessObj = {"status": "success", "results": results}
+            return JsonResponse(sucessObj)
+
+
+@api_view(['POST'])
+def getBasicStats(request):
+    '''
+    GET:
+    Get basic Statistics information.
+    '''
+
+    jsonData = request.data
+    logger.debug("request.data: {0}".format(jsonData))
+    if request.method == 'POST':
+
+        # check the request data
+        if ("sourceType" not in jsonData or "opTypes" not in jsonData):
+            failObj = {"status": "failed",
+                       "reason": "Please make sure your request data is valid."}
+            return JsonResponse(failObj, status=400)
+        # response all valid columns
+        sparkCode = getBasicStatsSparkCode(jsonData)
+
+        output = executeSpark(sparkCode, maxCheckCount=600, reqCheckDuration=0.1)
         if not output:
             failObj = {"status": "failed",
                        "reason": "Please see the logs for details."}
