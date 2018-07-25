@@ -1,0 +1,10 @@
+version: '3.4'
+services:
+  ubuntu-python3:
+    build:
+      context: .
+    image: hongchhe/ubuntu-python3
+    container_name: ubuntu-python3
+    #entrypoint: ["tail", "-f", "/dev/null"]
+    ports:
+      - 8888:8888
